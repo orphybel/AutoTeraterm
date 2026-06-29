@@ -83,7 +83,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, str]] = {
         "connect_pause": "3",
         "pause": "2",
         "no_security_warning": "true",
-        "set_window_title": "true",
+        "set_window_title": "false",
         "wait_timeout": "30",
     },
     "execution": {
@@ -324,37 +324,38 @@ commands =
 #  wait: texte           → wait 'texte'  (attend que ce texte apparaisse à l'écran)
 #  pause: N              → pause N       (pause personnalisée en secondes pour ce pas)
 
-_SPECIAL_KEYS: dict[str, str] = {
-    "{ENTER}":     "VK_RETURN",
-    "{RETURN}":    "VK_RETURN",
-    "{ESC}":       "VK_ESCAPE",
-    "{ESCAPE}":    "VK_ESCAPE",
-    "{TAB}":       "VK_TAB",
-    "{UP}":        "VK_UP",
-    "{DOWN}":      "VK_DOWN",
-    "{LEFT}":      "VK_LEFT",
-    "{RIGHT}":     "VK_RIGHT",
-    "{BACK}":      "VK_BACK",
-    "{BACKSPACE}": "VK_BACK",
-    "{DEL}":       "VK_DELETE",
-    "{DELETE}":    "VK_DELETE",
-    "{SPACE}":     "VK_SPACE",
-    "{HOME}":      "VK_HOME",
-    "{END}":       "VK_END",
-    "{PGUP}":      "VK_PRIOR",
-    "{PGDN}":      "VK_NEXT",
-    "{F1}":        "VK_F1",
-    "{F2}":        "VK_F2",
-    "{F3}":        "VK_F3",
-    "{F4}":        "VK_F4",
-    "{F5}":        "VK_F5",
-    "{F6}":        "VK_F6",
-    "{F7}":        "VK_F7",
-    "{F8}":        "VK_F8",
-    "{F9}":        "VK_F9",
-    "{F10}":       "VK_F10",
-    "{F11}":       "VK_F11",
-    "{F12}":       "VK_F12",
+# Codes virtuels Windows (décimal) — sendkey attend un entier, pas le nom VK_*
+_SPECIAL_KEYS: dict[str, int] = {
+    "{ENTER}":      13,   # VK_RETURN
+    "{RETURN}":     13,
+    "{ESC}":        27,   # VK_ESCAPE
+    "{ESCAPE}":     27,
+    "{TAB}":         9,   # VK_TAB
+    "{UP}":         38,   # VK_UP
+    "{DOWN}":       40,   # VK_DOWN
+    "{LEFT}":       37,   # VK_LEFT
+    "{RIGHT}":      39,   # VK_RIGHT
+    "{BACK}":        8,   # VK_BACK
+    "{BACKSPACE}":   8,
+    "{DEL}":        46,   # VK_DELETE
+    "{DELETE}":     46,
+    "{SPACE}":      32,   # VK_SPACE
+    "{HOME}":       36,   # VK_HOME
+    "{END}":        35,   # VK_END
+    "{PGUP}":       33,   # VK_PRIOR
+    "{PGDN}":       34,   # VK_NEXT
+    "{F1}":        112,   # VK_F1
+    "{F2}":        113,
+    "{F3}":        114,
+    "{F4}":        115,
+    "{F5}":        116,
+    "{F6}":        117,
+    "{F7}":        118,
+    "{F8}":        119,
+    "{F9}":        120,
+    "{F10}":       121,
+    "{F11}":       122,
+    "{F12}":       123,
 }
 
 
