@@ -1,5 +1,5 @@
 """
-AutoTeraTerm v2.0 — Automatisation de sessions SSH TeraTerm sur Windows
+AutoTeraTerm v2.1 — Automatisation de sessions SSH TeraTerm sur Windows
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ except ImportError:
 
 # ─── Version ───────────────────────────────────────────────────────────────────
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 DEFAULT_CONFIG = "config.ini"
 DEFAULT_JOBS = "jobs.ini"
 
@@ -84,6 +84,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, str]] = {
         "pause": "2",
         "no_security_warning": "true",
         "set_window_title": "true",
+        "wait_timeout": "30",
     },
     "execution": {
         "parallel": "true",
@@ -123,7 +124,7 @@ ssh_version = 2
 # Pause en secondes après l'établissement de la connexion
 connect_pause = 3
 
-# Pause en secondes entre chaque commande envoyée
+# Pause en secondes entre chaque commande envoyée (défaut entre chaque étape)
 pause = 2
 
 # Désactiver l'avertissement de sécurité SSH au premier accès
@@ -131,6 +132,9 @@ no_security_warning = true
 
 # Afficher le nom de la session dans la barre de titre TeraTerm
 set_window_title = true
+
+# Délai maximum en secondes pour les commandes "wait:" (0 = infini)
+wait_timeout = 30
 
 [execution]
 # true  → toutes les sessions s'ouvrent en parallèle
@@ -236,16 +240,33 @@ def generate_jobs(path: str) -> None:
 #   ip       = adresse IP ou hostname de la cible
 #   user     = nom d'utilisateur SSH
 #   pass     = mot de passe SSH
-#   commands = liste de commandes (une par ligne, indentées)
+#   commands = liste d'instructions (une par ligne, indentées)
 #
 # Champs OPTIONNELS (héritent de config.ini si omis) :
 #   port  = port SSH (défaut : 22)
-#   pause = délai entre commandes en secondes (défaut : 2)
+#   pause = délai entre instructions en secondes (défaut : 2)
 #
-# Les lignes commençant par # sont des commentaires.
+# ── Syntaxe des instructions ──────────────────────────────────────
+#
+#   texte normal     → envoi du texte + touche Entrée (sendln)
+#   !texte           → envoi du texte SANS Entrée  (ex: sélection de menu)
+#   {ENTER}          → touche Entrée seule
+#   {ESC}            → touche Echap
+#   {TAB}            → touche Tabulation
+#   {UP} {DOWN}      → touches flèches haut/bas
+#   {LEFT} {RIGHT}   → touches flèches gauche/droite
+#   {BACK}           → touche Retour arrière
+#   {DEL}            → touche Suppr
+#   {F1} … {F12}     → touches de fonction
+#   {SPACE}          → barre d'espace
+#   {HOME} {END}     → touches Début/Fin
+#   {PGUP} {PGDN}    → Page préc / Page suiv
+#   wait: texte      → attend que ce texte apparaisse à l'écran
+#   pause: N         → pause de N secondes pour cette étape uniquement
+#
 # ================================================================
 
-[Routeur-Core-1]
+[Routeur-Classique]
 ip    = 192.168.1.1
 user  = admin
 pass  = changeme
@@ -254,16 +275,21 @@ commands =
     show ip interface brief
     show running-config
 
-[Switch-Acces-2]
+[Navigation-Menu-Interactif]
 ip    = 192.168.1.2
 user  = admin
 pass  = changeme
-port  = 22
-pause = 3
+pause = 1
 commands =
-    show version
-    show vlan brief
-    show interfaces status
+    wait: >
+    atihm
+    wait: Menu
+    !6
+    wait: Sous-menu
+    !4
+    {ENTER}
+    pause: 3
+    exit
 
 [Serveur-Linux]
 ip    = 10.0.0.10
@@ -279,6 +305,109 @@ commands =
         f.write(content)
 
 
+# ─── Parsing des commandes enrichies ──────────────────────────────────────────
+#
+#  Syntaxe dans jobs.ini (champ commands) :
+#
+#  texte normal          → sendln 'texte'  (envoi + touche Entrée)
+#  !texte                → send 'texte'    (envoi SANS Entrée — navigation de menu)
+#  {ENTER}               → sendkey VK_RETURN
+#  {ESC} / {ESCAPE}      → sendkey VK_ESCAPE
+#  {TAB}                 → sendkey VK_TAB
+#  {UP/DOWN/LEFT/RIGHT}  → sendkey VK_UP / VK_DOWN / VK_LEFT / VK_RIGHT
+#  {BACK} / {BACKSPACE}  → sendkey VK_BACK
+#  {DEL} / {DELETE}      → sendkey VK_DELETE
+#  {HOME} / {END}        → sendkey VK_HOME / VK_END
+#  {PGUP} / {PGDN}       → sendkey VK_PRIOR / VK_NEXT
+#  {F1} … {F12}          → sendkey VK_F1 … VK_F12
+#  {SPACE}               → sendkey VK_SPACE
+#  wait: texte           → wait 'texte'  (attend que ce texte apparaisse à l'écran)
+#  pause: N              → pause N       (pause personnalisée en secondes pour ce pas)
+
+_SPECIAL_KEYS: dict[str, str] = {
+    "{ENTER}":     "VK_RETURN",
+    "{RETURN}":    "VK_RETURN",
+    "{ESC}":       "VK_ESCAPE",
+    "{ESCAPE}":    "VK_ESCAPE",
+    "{TAB}":       "VK_TAB",
+    "{UP}":        "VK_UP",
+    "{DOWN}":      "VK_DOWN",
+    "{LEFT}":      "VK_LEFT",
+    "{RIGHT}":     "VK_RIGHT",
+    "{BACK}":      "VK_BACK",
+    "{BACKSPACE}": "VK_BACK",
+    "{DEL}":       "VK_DELETE",
+    "{DELETE}":    "VK_DELETE",
+    "{SPACE}":     "VK_SPACE",
+    "{HOME}":      "VK_HOME",
+    "{END}":       "VK_END",
+    "{PGUP}":      "VK_PRIOR",
+    "{PGDN}":      "VK_NEXT",
+    "{F1}":        "VK_F1",
+    "{F2}":        "VK_F2",
+    "{F3}":        "VK_F3",
+    "{F4}":        "VK_F4",
+    "{F5}":        "VK_F5",
+    "{F6}":        "VK_F6",
+    "{F7}":        "VK_F7",
+    "{F8}":        "VK_F8",
+    "{F9}":        "VK_F9",
+    "{F10}":       "VK_F10",
+    "{F11}":       "VK_F11",
+    "{F12}":       "VK_F12",
+}
+
+
+def _parse_command(raw: str) -> dict:
+    """Convertit une ligne brute de jobs.ini en instruction macro structurée."""
+    cmd = raw.strip()
+
+    # Touche spéciale : {ENTER}, {ESC}, {F5}…
+    upper = cmd.upper()
+    if upper in _SPECIAL_KEYS:
+        return {"type": "key", "vk": _SPECIAL_KEYS[upper]}
+
+    # Envoi sans Entrée : préfixe !
+    if cmd.startswith("!"):
+        return {"type": "send", "text": cmd[1:]}
+
+    # Attente de texte à l'écran : préfixe wait:
+    low = cmd.lower()
+    if low.startswith("wait:"):
+        return {"type": "wait", "text": cmd[5:].strip()}
+
+    # Pause personnalisée : préfixe pause:
+    if low.startswith("pause:"):
+        try:
+            secs = float(cmd[6:].strip())
+        except ValueError:
+            secs = 2.0
+        return {"type": "pause", "seconds": secs}
+
+    # Défaut : sendln (texte + Entrée)
+    return {"type": "sendln", "text": cmd}
+
+
+def _cmd_to_lines(parsed: dict, default_pause: float, wait_timeout: int, esc: callable) -> list[str]:
+    """Génère les lignes de macro TeraTerm pour une instruction."""
+    t = parsed["type"]
+    if t == "sendln":
+        return [f"sendln '{esc(parsed['text'])}'", f"pause {default_pause:.1f}"]
+    if t == "send":
+        return [f"send '{esc(parsed['text'])}'", f"pause {default_pause:.1f}"]
+    if t == "key":
+        return [f"sendkey {parsed['vk']}", f"pause {default_pause:.1f}"]
+    if t == "wait":
+        lines = []
+        if wait_timeout > 0:
+            lines.append(f"timeout = {wait_timeout}")
+        lines.append(f"wait '{esc(parsed['text'])}'")
+        return lines
+    if t == "pause":
+        return [f"pause {parsed['seconds']:.1f}"]
+    return []
+
+
 # ─── Construction de la macro TeraTerm (.ttl) ──────────────────────────────────
 
 def build_macro(s: dict, cfg: configparser.ConfigParser) -> str:
@@ -286,9 +415,9 @@ def build_macro(s: dict, cfg: configparser.ConfigParser) -> str:
     connect_pause = cfg.getfloat("session", "connect_pause")
     no_warn       = cfg.getboolean("session", "no_security_warning")
     set_title     = cfg.getboolean("session", "set_window_title")
+    wait_timeout  = cfg.getint("session", "wait_timeout")
 
     def esc(text: str) -> str:
-        """Échappe les apostrophes pour les littéraux TeraTerm."""
         return text.replace("'", "''")
 
     flags = f"/ssh /{ssh_ver} /auth=password /user={esc(s['user'])} /passwd={esc(s['pass'])}"
@@ -304,11 +433,11 @@ def build_macro(s: dict, cfg: configparser.ConfigParser) -> str:
     if set_title:
         lines.append(f"titleset '{esc(s['name'])} — {s['ip']}'")
 
-    lines.append("")  # ligne vide pour lisibilité
+    lines.append("")
 
-    for cmd in s["commands"]:
-        lines.append(f"sendln '{esc(cmd)}'")
-        lines.append(f"pause {s['pause']:.1f}")
+    for raw_cmd in s["commands"]:
+        parsed = _parse_command(raw_cmd)
+        lines.extend(_cmd_to_lines(parsed, s["pause"], wait_timeout, esc))
 
     return "\n".join(lines) + "\n"
 
