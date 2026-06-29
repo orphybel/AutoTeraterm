@@ -1,0 +1,55 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+    tags:
+      - "v*"
+  workflow_dispatch:   # déclenchement manuel depuis l'onglet Actions
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installer PyInstaller
+        run: pip install pyinstaller
+
+      - name: Construire le .exe
+        run: >
+          pyinstaller
+          --onefile
+          --name AutoTeraterm
+          --console
+          auto_teraterm.py
+
+      - name: Vérification
+        run: dir dist\
+
+      # ── Artefact téléchargeable depuis l'onglet Actions ───────────────────
+      - name: Upload artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoTeraterm-Windows
+          path: dist\AutoTeraterm.exe
+          retention-days: 30
+
+      # ── Publication automatique sur chaque tag v* ─────────────────────────
+      - name: Publier une release GitHub
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist\AutoTeraterm.exe
+          generate_release_notes: true
