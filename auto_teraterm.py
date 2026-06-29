@@ -80,7 +80,7 @@ _CONFIG_DEFAULTS: dict[str, dict[str, str]] = {
     "session": {
         "port": "22",
         "ssh_version": "2",
-        "connect_pause": "3",
+        "connect_pause": "5",
         "pause": "2",
         "no_security_warning": "true",
         "set_window_title": "false",
@@ -324,38 +324,39 @@ commands =
 #  wait: texte           → wait 'texte'  (attend que ce texte apparaisse à l'écran)
 #  pause: N              → pause N       (pause personnalisée en secondes pour ce pas)
 
-# Codes virtuels Windows (décimal) — sendkey attend un entier, pas le nom VK_*
-_SPECIAL_KEYS: dict[str, int] = {
-    "{ENTER}":      13,   # VK_RETURN
-    "{RETURN}":     13,
-    "{ESC}":        27,   # VK_ESCAPE
-    "{ESCAPE}":     27,
-    "{TAB}":         9,   # VK_TAB
-    "{UP}":         38,   # VK_UP
-    "{DOWN}":       40,   # VK_DOWN
-    "{LEFT}":       37,   # VK_LEFT
-    "{RIGHT}":      39,   # VK_RIGHT
-    "{BACK}":        8,   # VK_BACK
-    "{BACKSPACE}":   8,
-    "{DEL}":        46,   # VK_DELETE
-    "{DELETE}":     46,
-    "{SPACE}":      32,   # VK_SPACE
-    "{HOME}":       36,   # VK_HOME
-    "{END}":        35,   # VK_END
-    "{PGUP}":       33,   # VK_PRIOR
-    "{PGDN}":       34,   # VK_NEXT
-    "{F1}":        112,   # VK_F1
-    "{F2}":        113,
-    "{F3}":        114,
-    "{F4}":        115,
-    "{F5}":        116,
-    "{F6}":        117,
-    "{F7}":        118,
-    "{F8}":        119,
-    "{F9}":        120,
-    "{F10}":       121,
-    "{F11}":       122,
-    "{F12}":       123,
+# Séquences envoyées via send/sendln — TeraTerm macro ne supporte pas sendkey
+# None = cas spécial {ENTER} → sendln '' (ligne vide = touche Entrée)
+_SPECIAL_KEYS: dict[str, str | None] = {
+    "{ENTER}":      None,          # sendln '' (CR+LF)
+    "{RETURN}":     None,
+    "{ESC}":        r"\x1b",       # ESC
+    "{ESCAPE}":     r"\x1b",
+    "{TAB}":        r"\t",         # Tab
+    "{BACK}":       r"\x08",       # Backspace
+    "{BACKSPACE}":  r"\x08",
+    "{DEL}":        r"\x1b[3~",   # Delete (ANSI)
+    "{DELETE}":     r"\x1b[3~",
+    "{SPACE}":      " ",           # Espace
+    "{UP}":         r"\x1b[A",    # Flèche haut (ANSI)
+    "{DOWN}":       r"\x1b[B",    # Flèche bas
+    "{RIGHT}":      r"\x1b[C",    # Flèche droite
+    "{LEFT}":       r"\x1b[D",    # Flèche gauche
+    "{HOME}":       r"\x1b[H",    # Début de ligne
+    "{END}":        r"\x1b[F",    # Fin de ligne
+    "{PGUP}":       r"\x1b[5~",   # Page préc
+    "{PGDN}":       r"\x1b[6~",   # Page suiv
+    "{F1}":         r"\x1bOP",    # F1 (VT100)
+    "{F2}":         r"\x1bOQ",
+    "{F3}":         r"\x1bOR",
+    "{F4}":         r"\x1bOS",
+    "{F5}":         r"\x1b[15~",  # F5-F12 (VT220)
+    "{F6}":         r"\x1b[17~",
+    "{F7}":         r"\x1b[18~",
+    "{F8}":         r"\x1b[19~",
+    "{F9}":         r"\x1b[20~",
+    "{F10}":        r"\x1b[21~",
+    "{F11}":        r"\x1b[23~",
+    "{F12}":        r"\x1b[24~",
 }
 
 
@@ -366,7 +367,7 @@ def _parse_command(raw: str) -> dict:
     # Touche spéciale : {ENTER}, {ESC}, {F5}…
     upper = cmd.upper()
     if upper in _SPECIAL_KEYS:
-        return {"type": "key", "vk": _SPECIAL_KEYS[upper]}
+        return {"type": "key", "seq": _SPECIAL_KEYS[upper]}
 
     # Envoi sans Entrée : préfixe !
     if cmd.startswith("!"):
@@ -402,7 +403,10 @@ def _cmd_to_lines(parsed: dict, default_pause: float, wait_timeout: int, esc: ca
     if t == "send":
         return [f"send '{esc(parsed['text'])}'", _pause_ms(default_pause)]
     if t == "key":
-        return [f"sendkey {parsed['vk']}", _pause_ms(default_pause)]
+        seq = parsed["seq"]
+        # None = {ENTER} → sendln '' envoie CR+LF (touche Entrée)
+        cmd_line = "sendln ''" if seq is None else f"send '{seq}'"
+        return [cmd_line, _pause_ms(default_pause)]
     if t == "wait":
         lines = []
         if wait_timeout > 0:
