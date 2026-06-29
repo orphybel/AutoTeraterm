@@ -388,15 +388,20 @@ def _parse_command(raw: str) -> dict:
     return {"type": "sendln", "text": cmd}
 
 
+def _pause_ms(seconds: float) -> str:
+    """Convertit des secondes en commande mpause (millisecondes, entier)."""
+    return f"mpause {max(1, int(round(seconds * 1000)))}"
+
+
 def _cmd_to_lines(parsed: dict, default_pause: float, wait_timeout: int, esc: callable) -> list[str]:
     """Génère les lignes de macro TeraTerm pour une instruction."""
     t = parsed["type"]
     if t == "sendln":
-        return [f"sendln '{esc(parsed['text'])}'", f"pause {default_pause:.1f}"]
+        return [f"sendln '{esc(parsed['text'])}'", _pause_ms(default_pause)]
     if t == "send":
-        return [f"send '{esc(parsed['text'])}'", f"pause {default_pause:.1f}"]
+        return [f"send '{esc(parsed['text'])}'", _pause_ms(default_pause)]
     if t == "key":
-        return [f"sendkey {parsed['vk']}", f"pause {default_pause:.1f}"]
+        return [f"sendkey {parsed['vk']}", _pause_ms(default_pause)]
     if t == "wait":
         lines = []
         if wait_timeout > 0:
@@ -404,7 +409,7 @@ def _cmd_to_lines(parsed: dict, default_pause: float, wait_timeout: int, esc: ca
         lines.append(f"wait '{esc(parsed['text'])}'")
         return lines
     if t == "pause":
-        return [f"pause {parsed['seconds']:.1f}"]
+        return [_pause_ms(parsed["seconds"])]
     return []
 
 
@@ -427,7 +432,7 @@ def build_macro(s: dict, cfg: configparser.ConfigParser) -> str:
     lines = [
         f"; AutoTeraTerm v{VERSION} — Session : {s['name']}",
         f"connect '{s['ip']}:{s['port']} {flags}'",
-        f"pause {connect_pause:.1f}",
+        _pause_ms(connect_pause),
     ]
 
     if set_title:
