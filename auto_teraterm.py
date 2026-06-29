@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import sys
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from ipaddress import ip_address
 
 DEFAULT_JOBS_FILE = "jobs.txt"
@@ -62,32 +62,46 @@ def launch_sessions(tterm_path, base_ip, user, password, commands, count):
 class DeviceConfigWindow:
     def __init__(self, root, jobs_file):
         self.root = root
-        self.jobs_file = jobs_file
         self.root.title("AutoTeraTerm")
         self.root.resizable(False, False)
 
         frame = ttk.Frame(root, padding=16)
         frame.grid(row=0, column=0, sticky="nsew")
 
-        ttk.Label(frame, text="Nbre d'appareils :").grid(row=0, column=0, sticky="w", pady=5)
+        ttk.Label(frame, text="Fichier jobs :").grid(row=0, column=0, sticky="w", pady=5)
+        self.jobs_var = tk.StringVar(value=jobs_file)
+        ttk.Entry(frame, textvariable=self.jobs_var, width=28).grid(row=0, column=1, pady=5, padx=(10, 0))
+        ttk.Button(frame, text="...", width=3, command=self.browse_jobs).grid(row=0, column=2, padx=(4, 0))
+
+        ttk.Separator(frame, orient="horizontal").grid(row=1, column=0, columnspan=3, sticky="ew", pady=8)
+
+        ttk.Label(frame, text="Nbre d'appareils :").grid(row=2, column=0, sticky="w", pady=5)
         self.count_var = tk.StringVar(value="1")
-        ttk.Entry(frame, textvariable=self.count_var, width=22).grid(row=0, column=1, pady=5, padx=(10, 0))
+        ttk.Entry(frame, textvariable=self.count_var, width=22).grid(row=2, column=1, pady=5, padx=(10, 0))
 
-        ttk.Label(frame, text="Adresse IP :").grid(row=1, column=0, sticky="w", pady=5)
+        ttk.Label(frame, text="Adresse IP :").grid(row=3, column=0, sticky="w", pady=5)
         self.ip_var = tk.StringVar(value="192.168.1.1")
-        ttk.Entry(frame, textvariable=self.ip_var, width=22).grid(row=1, column=1, pady=5, padx=(10, 0))
+        ttk.Entry(frame, textvariable=self.ip_var, width=22).grid(row=3, column=1, pady=5, padx=(10, 0))
 
-        ttk.Label(frame, text="Utilisateur :").grid(row=2, column=0, sticky="w", pady=5)
+        ttk.Label(frame, text="Utilisateur :").grid(row=4, column=0, sticky="w", pady=5)
         self.user_var = tk.StringVar()
-        ttk.Entry(frame, textvariable=self.user_var, width=22).grid(row=2, column=1, pady=5, padx=(10, 0))
+        ttk.Entry(frame, textvariable=self.user_var, width=22).grid(row=4, column=1, pady=5, padx=(10, 0))
 
-        ttk.Label(frame, text="Mot de passe :").grid(row=3, column=0, sticky="w", pady=5)
+        ttk.Label(frame, text="Mot de passe :").grid(row=5, column=0, sticky="w", pady=5)
         self.pass_var = tk.StringVar()
-        ttk.Entry(frame, textvariable=self.pass_var, show="*", width=22).grid(row=3, column=1, pady=5, padx=(10, 0))
+        ttk.Entry(frame, textvariable=self.pass_var, show="*", width=22).grid(row=5, column=1, pady=5, padx=(10, 0))
 
         ttk.Button(frame, text="Lancer", command=self.on_launch).grid(
-            row=4, column=0, columnspan=2, pady=(14, 0)
+            row=6, column=0, columnspan=3, pady=(14, 0)
         )
+
+    def browse_jobs(self):
+        path = filedialog.askopenfilename(
+            title="Sélectionner le fichier jobs",
+            filetypes=[("Fichiers texte", "*.txt"), ("Tous les fichiers", "*.*")],
+        )
+        if path:
+            self.jobs_var.set(path)
 
     def on_launch(self):
         try:
@@ -112,10 +126,15 @@ class DeviceConfigWindow:
 
         password = self.pass_var.get()
 
+        jobs_path = self.jobs_var.get().strip()
+        if not jobs_path:
+            messagebox.showerror("Erreur", "Veuillez sélectionner un fichier jobs.")
+            return
+
         try:
-            tterm_path, commands = parse_jobs_file(self.jobs_file)
+            tterm_path, commands = parse_jobs_file(jobs_path)
         except FileNotFoundError:
-            messagebox.showerror("Erreur", f"Fichier introuvable : {self.jobs_file}")
+            messagebox.showerror("Erreur", f"Fichier introuvable : {jobs_path}")
             return
 
         if not tterm_path:
