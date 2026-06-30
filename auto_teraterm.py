@@ -193,8 +193,8 @@ class DeviceConfigWindow:
             )
             return
 
-        pause_connexion = self.cfg.getfloat("Connexion", "pause_connexion")
-        pause_commande = self.cfg.getfloat("Connexion", "pause_commande")
+        pause_connexion = self.cfg.getint("Connexion", "pause_connexion")
+        pause_commande = self.cfg.getint("Connexion", "pause_commande")
 
         self.root.destroy()
         launch_sessions(
